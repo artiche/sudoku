@@ -6,7 +6,7 @@ namespace Sudoku;
 
 final class Grid
 {
-    /** @var int[] values 0..9, 0 = vide */
+    /** @var int[] values 0..9, 0 = empty */
     private array $cells;
 
     public function __construct(?array $cells = null)
