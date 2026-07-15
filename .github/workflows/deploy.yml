@@ -1,0 +1,49 @@
+name: CICD Deploy
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install lftp
+        run: sudo apt-get install -y lftp
+
+      - name: Backup and deploy via SFTP
+        env:
+          SFTP_HOST: ${{ secrets.sftp_host }}
+          SFTP_USER: ${{ secrets.sftp_user }}
+          SFTP_PWD: ${{ secrets.sftp_pwd }}
+        run: |
+          TIMESTAMP=$(date +"%Y%m%d_%H%M%S")
+          ARCHIVE_NAME="backup_${TIMESTAMP}.tar.gz"
+
+          lftp -u "$SFTP_USER","$SFTP_PWD" sftp://"$SFTP_HOST" <<EOF
+            # Create archive directory if it doesn't exist
+            mkdir -p archive
+
+            # Download index.php and src for backup
+            get index.php -o /tmp/index.php
+            mirror src /tmp/src
+
+            # Create local tar.gz archive
+            !tar -czf /tmp/${ARCHIVE_NAME} -C /tmp index.php src
+
+            # Upload archive to remote archive folder
+            put /tmp/${ARCHIVE_NAME} -o archive/${ARCHIVE_NAME}
+
+            # Remove old files
+            rm index.php
+            rm -rf src
+
+            # Upload new files
+            put index.php
+            mirror -R src src
+          EOF
