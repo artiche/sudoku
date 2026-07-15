@@ -14,40 +14,27 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v5
 
-      - name: Install lftp
-        uses: awalsh128/cache-apt-pkgs-action@latest
-        with:
-          packages: lftp
-          version: 1.0
+      - name: Install lftp and sshpass
+        run: sudo apt-get install -y lftp sshpass
 
       - name: Backup and deploy via SFTP
         env:
           SFTP_HOST: ${{ secrets.sftp_host }}
           SFTP_USER: ${{ secrets.sftp_user }}
-          SFTP_PWD: ${{ secrets.sftp_pwd }}
+          SSHPASS: ${{ secrets.sftp_pwd }}
         run: |
           TIMESTAMP=$(date +"%Y%m%d_%H%M%S")
           ARCHIVE_NAME="backup_${TIMESTAMP}.tar.gz"
           REPO_DIR="${GITHUB_WORKSPACE}"
-
-          # Store credentials in ~/.netrc — cleaned up via trap even on failure
-          printf 'machine %s login %s password %s\n' \
-            "${SFTP_HOST}" "${SFTP_USER}" "${SFTP_PWD}" > ~/.netrc
-          chmod 600 ~/.netrc
-          trap 'rm -f ~/.netrc /tmp/lftp_backup.sh /tmp/lftp_deploy.sh' EXIT
+          LFTP_OPTS="set sftp:connect-program 'sshpass -e ssh -a -x -o StrictHostKeyChecking=no'"
 
           # --- Step 1: Download existing files for backup ---
-          cat > /tmp/lftp_backup.sh <<LFTP_SCRIPT
-          open sftp://${SFTP_HOST}
-          mkdir -p archive
-          set cmd:fail-exit false
-          get index.php -o /tmp/backup_index.php
-          mirror src /tmp/backup_src
-          set cmd:fail-exit true
-          quit
-          LFTP_SCRIPT
-
-          lftp -f /tmp/lftp_backup.sh || { echo "Backup step failed"; exit 1; }
+          lftp -c "$LFTP_OPTS; open -u $SFTP_USER, sftp://$SFTP_HOST; \
+            set cmd:fail-exit false; \
+            mkdir -p archive; \
+            get index.php -o /tmp/backup_index.php; \
+            mirror src /tmp/backup_src; \
+            bye" || { echo "Backup step failed"; exit 1; }
 
           # Build archive from whatever was downloaded (handles first deploy)
           ARCHIVE_CONTENTS=""
@@ -61,18 +48,17 @@ jobs:
           fi
 
           # --- Step 2: Upload archive and deploy new files ---
-          cat > /tmp/lftp_deploy.sh <<LFTP_SCRIPT
-          open sftp://${SFTP_HOST}
-          set xfer:log true
-          $([ -f /tmp/${ARCHIVE_NAME} ] && echo "put /tmp/${ARCHIVE_NAME} -o archive/${ARCHIVE_NAME}")
-          set cmd:fail-exit false
-          rm index.php
-          rm -rf src
-          set cmd:fail-exit true
-          lcd ${REPO_DIR}
-          put index.php
-          mirror -R src src
-          quit
-          LFTP_SCRIPT
+          UPLOAD_ARCHIVE=""
+          [ -f /tmp/${ARCHIVE_NAME} ] && UPLOAD_ARCHIVE="put /tmp/${ARCHIVE_NAME} -o archive/${ARCHIVE_NAME};"
 
-          lftp -f /tmp/lftp_deploy.sh || { echo "Deploy step failed"; exit 1; }
+          lftp -c "$LFTP_OPTS; open -u $SFTP_USER, sftp://$SFTP_HOST; \
+            set xfer:log true; \
+            $UPLOAD_ARCHIVE \
+            set cmd:fail-exit false; \
+            rm index.php; \
+            rm -rf src; \
+            set cmd:fail-exit true; \
+            lcd $REPO_DIR; \
+            put index.php; \
+            mirror -R src src; \
+            bye" || { echo "Deploy step failed"; exit 1; }
