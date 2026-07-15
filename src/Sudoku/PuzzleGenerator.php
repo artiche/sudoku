@@ -37,37 +37,37 @@ final class PuzzleGenerator
                 $puzzle->setByIndex($i, 0);
             }
 
-            // contrainte min de givens
+            // minimum givens constraint
             if ($puzzle->givensCount() < $profile->minGivens) {
-                foreach ($backup as $i => $v) $puzzle->setByIndex((int)$i, $v);
+                foreach ($backup as $i => $v) $puzzle->setByIndex($i, $v);
                 continue;
             }
 
-            // unicité
+            // uniqueness
             $nSolutions = $this->solutionCounter->countSolutions($puzzle, 2);
             if ($nSolutions !== 1) {
-                foreach ($backup as $i => $v) $puzzle->setByIndex((int)$i, $v);
+                foreach ($backup as $i => $v) $puzzle->setByIndex($i, $v);
                 continue;
             }
 
-            // difficulté
+            // difficulty
             $eval = $this->humanSolver->solveWithScore($puzzle, $profile);
             $okDifficulty = $eval->solved
                 && $eval->score >= $profile->minScore
                 && $eval->score <= $profile->maxScore;
 
             if (!$okDifficulty) {
-                foreach ($backup as $i => $v) $puzzle->setByIndex((int)$i, $v);
+                foreach ($backup as $i => $v) $puzzle->setByIndex($i, $v);
                 continue;
             }
 
-            // sinon suppression validée
+            // otherwise keep the removal
         }
 
-        // Vérification finale
+        // Final validation
         $finalSolutions = $this->solutionCounter->countSolutions($puzzle, 2);
         if ($finalSolutions !== 1) {
-            // fallback de sécurité
+            // safety fallback
             return $this->generate($profile, $seed === null ? null : $seed + 1, $symmetry180);
         }
 
