@@ -263,10 +263,11 @@ $safeSeedForUrl = rawurlencode($seedInputDigits);
             grid-template-rows: repeat(3, 1fr);
             align-items: center;
             justify-items: center;
-            font-size: clamp(0.4rem, 2.05vw, 0.62rem);
+            font-size: clamp(0.62rem, 2.95vw, 0.9rem);
             font-weight: 600;
             color: #365b95;
             pointer-events: none;
+            transform: translateY(-1px);
         }
 
         .note {
@@ -633,11 +634,6 @@ $safeSeedForUrl = rawurlencode($seedInputDigits);
                     return;
                 }
 
-                const payloadCells = current.payload.cells;
-                if (!payloadCells || typeof payloadCells !== 'object') {
-                    return;
-                }
-
                 const settings = current.payload.settings;
                 if (settings && typeof settings === 'object') {
                     if (draftToggle && typeof settings.draft === 'boolean') {
@@ -647,6 +643,10 @@ $safeSeedForUrl = rawurlencode($seedInputDigits);
                         errorToggle.checked = settings.errors;
                     }
                 }
+
+                const payloadCells = (current.payload.cells && typeof current.payload.cells === 'object')
+                    ? current.payload.cells
+                    : {};
 
                 Object.keys(payloadCells).forEach(function (idxText) {
                     const idx = Number(idxText);
@@ -802,6 +802,49 @@ $safeSeedForUrl = rawurlencode($seedInputDigits);
                 refreshKeypadHighlights();
             }
 
+            function moveActiveByArrow(key) {
+                if (!activeInput) {
+                    return false;
+                }
+
+                const idx = Number(activeInput.dataset.idx || '-1');
+                if (idx < 0) {
+                    return false;
+                }
+
+                let step = 0;
+                let boundaryCheck = null;
+                if (key === 'ArrowLeft') {
+                    step = -1;
+                    boundaryCheck = function (i) { return i % 9 !== 0; };
+                } else if (key === 'ArrowRight') {
+                    step = 1;
+                    boundaryCheck = function (i) { return i % 9 !== 8; };
+                } else if (key === 'ArrowUp') {
+                    step = -9;
+                    boundaryCheck = function (i) { return i >= 9; };
+                } else if (key === 'ArrowDown') {
+                    step = 9;
+                    boundaryCheck = function (i) { return i < 72; };
+                }
+
+                if (step === 0 || boundaryCheck === null) {
+                    return false;
+                }
+
+                let cursor = idx;
+                while (boundaryCheck(cursor)) {
+                    cursor += step;
+                    if (byIndex.has(cursor)) {
+                        const next = byIndex.get(cursor);
+                        setActiveCell(next);
+                        return true;
+                    }
+                }
+
+                return false;
+            }
+
             function applyDigitToActiveCell(digit) {
                 if (!activeInput) {
                     return;
@@ -877,26 +920,9 @@ $safeSeedForUrl = rawurlencode($seedInputDigits);
                         return;
                     }
 
-                    const idx = Number(cell.dataset.idx || '-1');
-                    if (idx < 0) {
-                        return;
-                    }
-
-                    let target = -1;
-                    if (event.key === 'ArrowLeft' && idx % 9 !== 0) {
-                        target = idx - 1;
-                    } else if (event.key === 'ArrowRight' && idx % 9 !== 8) {
-                        target = idx + 1;
-                    } else if (event.key === 'ArrowUp' && idx >= 9) {
-                        target = idx - 9;
-                    } else if (event.key === 'ArrowDown' && idx < 72) {
-                        target = idx + 9;
-                    }
-
-                    if (target >= 0 && byIndex.has(target)) {
+                    if (moveActiveByArrow(event.key)) {
                         event.preventDefault();
-                        const next = byIndex.get(target);
-                        setActiveCell(next);
+                        event.stopPropagation();
                     }
                 });
             });
@@ -933,18 +959,45 @@ $safeSeedForUrl = rawurlencode($seedInputDigits);
             });
 
             if (draftToggle) {
-                draftToggle.addEventListener('change', function () {
+                const onDraftToggle = function () {
                     refreshKeypadHighlights();
                     persistCurrentState();
-                });
+                };
+                draftToggle.addEventListener('input', onDraftToggle);
+                draftToggle.addEventListener('change', onDraftToggle);
             }
 
             if (errorToggle) {
-                errorToggle.addEventListener('change', function () {
+                const onErrorToggle = function () {
                     refreshValidationState();
                     persistCurrentState();
-                });
+                };
+                errorToggle.addEventListener('input', onErrorToggle);
+                errorToggle.addEventListener('change', onErrorToggle);
             }
+
+            document.addEventListener('keydown', function (event) {
+                if (!activeInput) {
+                    return;
+                }
+
+                if (dialog && dialog.open) {
+                    return;
+                }
+
+                const target = event.target;
+                if (target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement || target instanceof HTMLSelectElement) {
+                    return;
+                }
+
+                if (target instanceof HTMLElement && target.closest('.cell-edit')) {
+                    return;
+                }
+
+                if (moveActiveByArrow(event.key)) {
+                    event.preventDefault();
+                }
+            });
 
             if (seedTrigger && dialog && dialogForm && dialogInput) {
                 seedTrigger.addEventListener('click', function () {
