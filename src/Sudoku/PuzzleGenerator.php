@@ -39,14 +39,14 @@ final class PuzzleGenerator
 
             // minimum givens constraint
             if ($puzzle->givensCount() < $profile->minGivens) {
-                foreach ($backup as $i => $v) $puzzle->setByIndex((int)$i, $v);
+                foreach ($backup as $i => $v) $puzzle->setByIndex($i, $v);
                 continue;
             }
 
             // uniqueness
             $nSolutions = $this->solutionCounter->countSolutions($puzzle, 2);
             if ($nSolutions !== 1) {
-                foreach ($backup as $i => $v) $puzzle->setByIndex((int)$i, $v);
+                foreach ($backup as $i => $v) $puzzle->setByIndex($i, $v);
                 continue;
             }
 
@@ -57,7 +57,7 @@ final class PuzzleGenerator
                 && $eval->score <= $profile->maxScore;
 
             if (!$okDifficulty) {
-                foreach ($backup as $i => $v) $puzzle->setByIndex((int)$i, $v);
+                foreach ($backup as $i => $v) $puzzle->setByIndex($i, $v);
                 continue;
             }
 

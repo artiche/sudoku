@@ -46,7 +46,7 @@ $givens = $puzzle->givensCount();
         Difficulty: <strong><?= $difficulty ?></strong><br>
         Givens: <strong><?= $givens ?></strong>
     </p>
-    <table aria-label="Generated Sudoku puzzle">
+    <table aria-label="Generated Sudoku puzzle" role="grid">
         <tbody>
 <?php for ($row = 0; $row < 9; $row++): ?>
             <tr>
