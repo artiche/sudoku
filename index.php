@@ -108,6 +108,17 @@ $safeSeedForUrl = rawurlencode($seedInputDigits);
             margin: 0 0 0.55rem;
             font-size: clamp(1.2rem, 4.2vw, 1.7rem);
             letter-spacing: 0.02em;
+            text-align: center;
+        }
+
+        .title-link {
+            color: inherit;
+            text-decoration: none;
+        }
+
+        .title-link:hover {
+            text-decoration: underline;
+            text-underline-offset: 0.16rem;
         }
 
         .toolbar {
@@ -292,6 +303,11 @@ $safeSeedForUrl = rawurlencode($seedInputDigits);
             color: #1f7b3a;
         }
 
+        .cell-edit.is-solved {
+            background: #dff4e5;
+            box-shadow: inset 0 0 0 1px #98cfa9;
+        }
+
         .play-controls {
             margin: 0.75rem auto 0;
             width: min(92vw, 21rem);
@@ -306,6 +322,10 @@ $safeSeedForUrl = rawurlencode($seedInputDigits);
             display: grid;
             grid-template-columns: repeat(3, 1fr);
             gap: 0.45rem;
+        }
+
+        .keypad.hidden {
+            display: none;
         }
 
         .key {
@@ -342,6 +362,40 @@ $safeSeedForUrl = rawurlencode($seedInputDigits);
             grid-column: span 3;
             font-size: 0.95rem;
             font-weight: 600;
+        }
+
+        .solved-panel {
+            margin: 0.95rem auto 0;
+            width: min(92vw, 21rem);
+            display: none;
+            align-items: center;
+            justify-content: space-between;
+            gap: 0.8rem;
+            padding: 0.65rem 0.7rem;
+            border: 1px solid #9acdab;
+            border-radius: 0.65rem;
+            background: #ecf9f0;
+        }
+
+        .solved-panel.visible {
+            display: flex;
+        }
+
+        .solved-msg {
+            font-size: 1.05rem;
+            font-weight: 800;
+            color: #1f7b3a;
+        }
+
+        .reset-btn {
+            border: 1px solid #6ea787;
+            background: #fff;
+            color: #2a6e43;
+            border-radius: 0.55rem;
+            padding: 0.46rem 0.7rem;
+            font: inherit;
+            font-weight: 700;
+            cursor: pointer;
         }
 
         dialog {
@@ -418,7 +472,7 @@ $safeSeedForUrl = rawurlencode($seedInputDigits);
 </head>
 <body>
     <main class="page">
-        <h1>Sudoku</h1>
+        <h1><a href="/sudoku" class="title-link">Sudoku</a></h1>
 
         <div class="toolbar">
             <button type="button" class="seed-trigger" id="seed-trigger">seed <?= $safeSeedInput ?></button>
@@ -476,7 +530,7 @@ $safeSeedForUrl = rawurlencode($seedInputDigits);
 
             <label class="control-toggle">
                 <input type="checkbox" id="error-toggle">
-                erreurs
+                errors
             </label>
         </div>
 
@@ -490,7 +544,12 @@ $safeSeedForUrl = rawurlencode($seedInputDigits);
             <button type="button" class="key" data-digit="7">7</button>
             <button type="button" class="key" data-digit="8">8</button>
             <button type="button" class="key" data-digit="9">9</button>
-            <button type="button" class="key key-clear" data-action="clear">Effacer la case selectionnee</button>
+            <button type="button" class="key key-clear" data-action="clear">Clear selected cell</button>
+        </div>
+
+        <div class="solved-panel" id="solved-panel" aria-live="polite">
+            <span class="solved-msg">Bravo !</span>
+            <button type="button" class="reset-btn" id="reset-grid-btn">Reset grid</button>
         </div>
 
         <dialog id="seed-dialog">
@@ -519,6 +578,9 @@ $safeSeedForUrl = rawurlencode($seedInputDigits);
             const keypadButtons = Array.from(document.querySelectorAll('.key'));
             const draftToggle = document.getElementById('draft-toggle');
             const errorToggle = document.getElementById('error-toggle');
+            const keypad = document.querySelector('.keypad');
+            const solvedPanel = document.getElementById('solved-panel');
+            const resetGridBtn = document.getElementById('reset-grid-btn');
             const seedTrigger = document.getElementById('seed-trigger');
             const dialog = document.getElementById('seed-dialog');
             const dialogForm = document.getElementById('seed-dialog-form');
@@ -752,6 +814,11 @@ $safeSeedForUrl = rawurlencode($seedInputDigits);
                         cell.classList.add('is-solved');
                     }
                 });
+
+                if (keypad && solvedPanel) {
+                    keypad.classList.toggle('hidden', solved);
+                    solvedPanel.classList.toggle('visible', solved);
+                }
             }
 
             function refreshKeypadHighlights() {
@@ -974,6 +1041,23 @@ $safeSeedForUrl = rawurlencode($seedInputDigits);
                 };
                 errorToggle.addEventListener('input', onErrorToggle);
                 errorToggle.addEventListener('change', onErrorToggle);
+            }
+
+            if (resetGridBtn) {
+                resetGridBtn.addEventListener('click', function () {
+                    for (const [idx, state] of stateByIndex.entries()) {
+                        state.value = '';
+                        state.notes.clear();
+                        const cell = byIndex.get(idx);
+                        if (cell) {
+                            renderCell(cell);
+                        }
+                    }
+
+                    refreshValidationState();
+                    refreshKeypadHighlights();
+                    persistCurrentState();
+                });
             }
 
             document.addEventListener('keydown', function (event) {
