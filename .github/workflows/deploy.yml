@@ -20,6 +20,14 @@ jobs:
           packages: lftp
           version: 1.0
 
+      - name: Add SSH host key
+        env:
+          SFTP_HOST: ${{ secrets.sftp_host }}
+        run: |
+          mkdir -p ~/.ssh
+          ssh-keyscan -H "$SFTP_HOST" >> ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+
       - name: Backup and deploy via SFTP
         env:
           SFTP_HOST: ${{ secrets.sftp_host }}
