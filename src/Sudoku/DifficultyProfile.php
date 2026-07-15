@@ -36,7 +36,19 @@ final class DifficultyProfile
             maxScore: 600,
             minGivens: 28,
             maxGivens: 36,
-            allowedTechniques: ['naked_single', 'hidden_single', 'naked_pair']
+            allowedTechniques: ['naked_single', 'hidden_single', 'naked_pair', 'pointing_pair']
+        );
+    }
+
+    public static function hard(): self
+    {
+        return new self(
+            name: 'hard',
+            minScore: 450,
+            maxScore: 1400,
+            minGivens: 22,
+            maxGivens: 32,
+            allowedTechniques: ['naked_single', 'hidden_single', 'naked_pair', 'pointing_pair', 'x_wing']
         );
     }
 }

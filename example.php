@@ -14,11 +14,31 @@ use Sudoku\PuzzleGenerator;
 
 $generator = new PuzzleGenerator();
 
-$profile = DifficultyProfile::easy();
-$puzzle = $generator->generate($profile, seed: 12345, symmetry180: true);
-$cells = $puzzle->toArray();
-$difficulty = htmlspecialchars($profile->name, ENT_QUOTES, 'UTF-8');
-$givens = $puzzle->givensCount();
+$seedInput = isset($_GET['seed']) && is_string($_GET['seed'])
+    ? trim($_GET['seed'])
+    : '12345';
+$seed = null;
+if ($seedInput !== '' && preg_match('/^-?\d+$/', $seedInput) === 1) {
+    $seed = (int)$seedInput;
+}
+
+$profiles = [
+    DifficultyProfile::easy(),
+    DifficultyProfile::medium(),
+    DifficultyProfile::hard(),
+];
+
+$generated = [];
+foreach ($profiles as $profile) {
+    $puzzle = $generator->generate($profile, seed: $seed, symmetry180: true);
+    $generated[] = [
+        'difficulty' => htmlspecialchars($profile->name, ENT_QUOTES, 'UTF-8'),
+        'givens' => $puzzle->givensCount(),
+        'cells' => $puzzle->toArray(),
+    ];
+}
+
+$safeSeedInput = htmlspecialchars($seedInput, ENT_QUOTES, 'UTF-8');
 
 ?><!doctype html>
 <html lang="en">
@@ -27,7 +47,36 @@ $givens = $puzzle->givensCount();
     <title>Sudoku Generator Example</title>
     <style>
         body { font-family: Arial, sans-serif; margin: 2rem; color: #222; }
+        form {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.75rem;
+            align-items: end;
+            margin: 0 0 1rem;
+        }
+        label {
+            display: flex;
+            flex-direction: column;
+            gap: 0.25rem;
+            font-size: 0.95rem;
+        }
+        input, select, button {
+            font: inherit;
+            padding: 0.35rem 0.5rem;
+        }
         .meta { margin: 0 0 1rem; font-size: 0.95rem; }
+        .grids {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 1.5rem;
+        }
+        .grid-card {
+            min-width: 20rem;
+        }
+        .grid-title {
+            margin: 0 0 0.5rem;
+            font-size: 1rem;
+        }
         table { border-collapse: collapse; border: 3px solid #333; }
         td {
             width: 2.5rem;
@@ -42,17 +91,33 @@ $givens = $puzzle->givensCount();
     </style>
 </head>
 <body>
+    <form method="get" action="">
+        <label>
+            Seed (integer, optional)
+            <input type="number" name="seed" value="<?= $safeSeedInput ?>" step="1">
+        </label>
+
+        <button type="submit">Generate 3 Grids</button>
+    </form>
+
     <p class="meta">
-        Difficulty: <strong><?= $difficulty ?></strong><br>
-        Givens: <strong><?= $givens ?></strong>
+        Seed: <strong><?= $seed === null ? 'random' : $seed ?></strong><br>
+        Profiles: <strong>easy / medium / hard</strong>
     </p>
-    <table aria-label="Generated Sudoku puzzle" role="grid">
-        <tbody>
+    <div class="grids">
+<?php foreach ($generated as $grid): ?>
+        <section class="grid-card">
+            <h2 class="grid-title">
+                <?= $grid['difficulty'] ?>
+                (<?= $grid['givens'] ?> givens)
+            </h2>
+            <table aria-label="Generated Sudoku puzzle (<?= $grid['difficulty'] ?>)" role="grid">
+                <tbody>
 <?php for ($row = 0; $row < 9; $row++): ?>
-            <tr>
+                    <tr>
 <?php for ($col = 0; $col < 9; $col++): ?>
 <?php
-    $value = $cells[$row * 9 + $col];
+    $value = $grid['cells'][$row * 9 + $col];
     $classes = [];
     if ($col % 3 === 2 && $col !== 8) {
         $classes[] = 'block-right';
@@ -61,11 +126,14 @@ $givens = $puzzle->givensCount();
         $classes[] = 'block-bottom';
     }
 ?>
-                <td<?= $classes === [] ? '' : ' class="' . implode(' ', $classes) . '"' ?>><?= $value === 0 ? '' : $value ?></td>
+                        <td<?= $classes === [] ? '' : ' class="' . implode(' ', $classes) . '"' ?>><?= $value === 0 ? '' : $value ?></td>
 <?php endfor; ?>
-            </tr>
+                    </tr>
 <?php endfor; ?>
-        </tbody>
-    </table>
+                </tbody>
+            </table>
+        </section>
+<?php endforeach; ?>
+    </div>
 </body>
 </html>

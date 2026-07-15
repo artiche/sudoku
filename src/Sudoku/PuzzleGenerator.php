@@ -16,12 +16,26 @@ final class PuzzleGenerator
 
     public function generate(DifficultyProfile $profile, ?int $seed = null, bool $symmetry180 = true): Grid
     {
+        $result = $this->generateWithSolution($profile, $seed, $symmetry180);
+        return $result['puzzle'];
+    }
+
+    /**
+     * @return array{puzzle: Grid, solution: Grid, seed: int|null}
+     */
+    public function generateWithSolution(DifficultyProfile $profile, ?int $seed = null, bool $symmetry180 = true): array
+    {
         $currentSeed = $seed;
 
         for ($attempt = 0; $attempt < self::MAX_ATTEMPTS; $attempt++) {
-            $puzzle = $this->tryGenerate($profile, $currentSeed, $symmetry180);
+            $solution = $this->fullGridGenerator->generate($currentSeed);
+            $puzzle = $this->tryGenerate($profile, $solution, $symmetry180, $currentSeed);
             if ($puzzle !== null) {
-                return $puzzle;
+                return [
+                    'puzzle' => $puzzle,
+                    'solution' => $solution,
+                    'seed' => $currentSeed,
+                ];
             }
             $currentSeed = ($currentSeed === null) ? mt_rand() : $currentSeed + 1;
         }
@@ -35,13 +49,12 @@ final class PuzzleGenerator
         );
     }
 
-    private function tryGenerate(DifficultyProfile $profile, ?int $seed, bool $symmetry180): ?Grid
+    private function tryGenerate(DifficultyProfile $profile, Grid $solution, bool $symmetry180, ?int $seed): ?Grid
     {
-        $solution = $this->fullGridGenerator->generate($seed);
         $puzzle = $solution->copy();
 
         $positions = range(0, 80);
-        $this->shuffle($positions);
+        $this->shuffle($positions, $seed);
 
         foreach ($positions as $idx) {
             if ($puzzle->getByIndex($idx) === 0) continue;
@@ -78,6 +91,12 @@ final class PuzzleGenerator
                 continue;
             }
 
+            // Keep givens visually balanced across units.
+            if (!$this->isBalancedDistribution($puzzle)) {
+                foreach ($backup as $i => $v) $puzzle->setByIndex($i, $v);
+                continue;
+            }
+
             // Removal accepted
         }
 
@@ -91,11 +110,94 @@ final class PuzzleGenerator
             return null;
         }
 
+        if (!$this->isBalancedDistribution($puzzle)) {
+            return null;
+        }
+
         return $puzzle;
     }
 
-    private function shuffle(array &$arr): void
+    private function isBalancedDistribution(Grid $grid): bool
     {
+        $rowCounts = array_fill(0, 9, 0);
+        $colCounts = array_fill(0, 9, 0);
+        $boxCounts = array_fill(0, 9, 0);
+
+        for ($r = 0; $r < 9; $r++) {
+            for ($c = 0; $c < 9; $c++) {
+                if ($grid->get($r, $c) === 0) {
+                    continue;
+                }
+                $rowCounts[$r]++;
+                $colCounts[$c]++;
+                $boxIdx = intdiv($r, 3) * 3 + intdiv($c, 3);
+                $boxCounts[$boxIdx]++;
+            }
+        }
+
+        $givens = $grid->givensCount();
+        $expectedPerUnit = $givens / 9.0;
+
+        $minLineGivens = 1;
+        $maxLineGivens = min(9, (int)ceil($expectedPerUnit) + 3);
+
+        $minBoxGivens = 1;
+        $maxBoxGivens = min(9, (int)ceil($expectedPerUnit) + 2);
+
+        if (!$this->isWithinBounds($rowCounts, $minLineGivens, $maxLineGivens)) {
+            return false;
+        }
+
+        if (!$this->isWithinBounds($colCounts, $minLineGivens, $maxLineGivens)) {
+            return false;
+        }
+
+        if (!$this->isWithinBounds($boxCounts, $minBoxGivens, $maxBoxGivens)) {
+            return false;
+        }
+
+        if ((max($rowCounts) - min($rowCounts)) > 4) {
+            return false;
+        }
+
+        if ((max($colCounts) - min($colCounts)) > 4) {
+            return false;
+        }
+
+        if ((max($boxCounts) - min($boxCounts)) > 3) {
+            return false;
+        }
+
+        return true;
+    }
+
+    /** @param int[] $counts */
+    private function isWithinBounds(array $counts, int $min, int $max): bool
+    {
+        foreach ($counts as $count) {
+            if ($count < $min || $count > $max) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private function shuffle(array &$arr, ?int $seed = null): void
+    {
+        if ($seed !== null) {
+            $state = ($seed ^ 0x9E3779B9) & 0x7fffffff;
+            if ($state === 0) {
+                $state = 1;
+            }
+
+            for ($i = count($arr) - 1; $i > 0; $i--) {
+                $state = (int)((1103515245 * $state + 12345) & 0x7fffffff);
+                $j = $state % ($i + 1);
+                [$arr[$i], $arr[$j]] = [$arr[$j], $arr[$i]];
+            }
+            return;
+        }
+
         for ($i = count($arr) - 1; $i > 0; $i--) {
             $j = mt_rand(0, $i);
             [$arr[$i], $arr[$j]] = [$arr[$j], $arr[$i]];
