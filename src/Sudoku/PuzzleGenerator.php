@@ -12,7 +12,30 @@ final class PuzzleGenerator
         private readonly HumanSolver $humanSolver = new HumanSolver()
     ) {}
 
+    private const MAX_ATTEMPTS = 100;
+
     public function generate(DifficultyProfile $profile, ?int $seed = null, bool $symmetry180 = true): Grid
+    {
+        $currentSeed = $seed;
+
+        for ($attempt = 0; $attempt < self::MAX_ATTEMPTS; $attempt++) {
+            $puzzle = $this->tryGenerate($profile, $currentSeed, $symmetry180);
+            if ($puzzle !== null) {
+                return $puzzle;
+            }
+            $currentSeed = ($currentSeed === null) ? mt_rand() : $currentSeed + 1;
+        }
+
+        throw new \RuntimeException(
+            sprintf(
+                'Failed to generate a valid %s puzzle after %d attempts.',
+                $profile->name,
+                self::MAX_ATTEMPTS
+            )
+        );
+    }
+
+    private function tryGenerate(DifficultyProfile $profile, ?int $seed, bool $symmetry180): ?Grid
     {
         $solution = $this->fullGridGenerator->generate($seed);
         $puzzle = $solution->copy();
@@ -22,6 +45,11 @@ final class PuzzleGenerator
 
         foreach ($positions as $idx) {
             if ($puzzle->getByIndex($idx) === 0) continue;
+
+            // Stop digging once we've reached the target givens range
+            if ($puzzle->givensCount() <= $profile->maxGivens) {
+                break;
+            }
 
             $toRemove = [$idx];
             if ($symmetry180) {
@@ -37,38 +65,30 @@ final class PuzzleGenerator
                 $puzzle->setByIndex($i, 0);
             }
 
-            // minimum givens constraint
+            // Never go below minGivens
             if ($puzzle->givensCount() < $profile->minGivens) {
                 foreach ($backup as $i => $v) $puzzle->setByIndex($i, $v);
                 continue;
             }
 
-            // uniqueness
+            // Uniqueness check: removal is only valid if puzzle still has exactly one solution
             $nSolutions = $this->solutionCounter->countSolutions($puzzle, 2);
             if ($nSolutions !== 1) {
                 foreach ($backup as $i => $v) $puzzle->setByIndex($i, $v);
                 continue;
             }
 
-            // difficulty
-            $eval = $this->humanSolver->solveWithScore($puzzle, $profile);
-            $okDifficulty = $eval->solved
-                && $eval->score >= $profile->minScore
-                && $eval->score <= $profile->maxScore;
-
-            if (!$okDifficulty) {
-                foreach ($backup as $i => $v) $puzzle->setByIndex($i, $v);
-                continue;
-            }
-
-            // otherwise keep the removal
+            // Removal accepted
         }
 
-        // Final validation
-        $finalSolutions = $this->solutionCounter->countSolutions($puzzle, 2);
-        if ($finalSolutions !== 1) {
-            // safety fallback
-            return $this->generate($profile, $seed === null ? null : $seed + 1, $symmetry180);
+        // Final acceptance: givens must be within [minGivens, maxGivens] and solution unique
+        $finalCount = $puzzle->givensCount();
+        if ($finalCount < $profile->minGivens || $finalCount > $profile->maxGivens) {
+            return null;
+        }
+
+        if ($this->solutionCounter->countSolutions($puzzle, 2) !== 1) {
+            return null;
         }
 
         return $puzzle;
