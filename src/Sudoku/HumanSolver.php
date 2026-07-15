@@ -46,7 +46,7 @@ final class HumanSolver
                 }
             }
 
-            // Placeholder simple (optionnel à enrichir)
+            // Simple placeholder (easy to extend later)
             if (!$progress && in_array('naked_pair', $profile->allowedTechniques, true)) {
                 $applied = $this->applyNakedPairsLight($g);
                 if ($applied > 0) {
@@ -111,8 +111,8 @@ final class HumanSolver
 
     private function applyNakedPairsLight(Grid $grid): int
     {
-        // Implémentation volontairement légère: on ne fait que compter quelques éliminations conceptuelles.
-        // Pour une vraie difficulté "medium+", il faudra propager les candidats par unité.
+        // This intentionally stays lightweight and only counts conceptual eliminations.
+        // A real "medium+" difficulty would need candidate propagation within each unit.
         return 0;
     }
 
